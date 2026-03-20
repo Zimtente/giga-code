@@ -4,6 +4,7 @@ import {
   FolderIcon,
   GitPullRequestIcon,
   PlusIcon,
+  PinIcon,
   RocketIcon,
   SettingsIcon,
   SquarePenIcon,
@@ -102,6 +103,22 @@ function formatRelativeTime(iso: string): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+function compareThreadsForSidebar(
+  a: { id: ThreadId; createdAt: string; pinned?: boolean },
+  b: {
+    id: ThreadId;
+    createdAt: string;
+    pinned?: boolean;
+  },
+): number {
+  const pinRank = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
+  if (pinRank !== 0) return pinRank;
+
+  const byDate = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  if (byDate !== 0) return byDate;
+  return b.id.localeCompare(a.id);
 }
 
 interface TerminalStatusIndicator {
@@ -255,6 +272,7 @@ export default function Sidebar() {
   const projects = useStore((store) => store.projects);
   const threads = useStore((store) => store.threads);
   const markThreadUnread = useStore((store) => store.markThreadUnread);
+  const setThreadPinned = useStore((store) => store.setThreadPinned);
   const toggleProject = useStore((store) => store.toggleProject);
   const reorderProjects = useStore((store) => store.reorderProjects);
   const clearComposerDraftForThread = useComposerDraftStore((store) => store.clearThreadDraft);
@@ -708,6 +726,7 @@ export default function Sidebar() {
       const clicked = await api.contextMenu.show(
         [
           { id: "rename", label: "Rename thread" },
+          { id: "toggle-pin", label: thread.pinned ? "Unpin thread" : "Pin thread" },
           { id: "mark-unread", label: "Mark unread" },
           { id: "copy-path", label: "Copy Path" },
           { id: "copy-thread-id", label: "Copy Thread ID" },
@@ -725,6 +744,10 @@ export default function Sidebar() {
 
       if (clicked === "mark-unread") {
         markThreadUnread(threadId);
+        return;
+      }
+      if (clicked === "toggle-pin") {
+        setThreadPinned(threadId, !thread.pinned);
         return;
       }
       if (clicked === "copy-path") {
@@ -764,6 +787,7 @@ export default function Sidebar() {
       deleteThread,
       markThreadUnread,
       projectCwdById,
+      setThreadPinned,
       threads,
     ],
   );
@@ -1334,12 +1358,7 @@ export default function Sidebar() {
                 {projects.map((project) => {
                   const projectThreads = threads
                     .filter((thread) => thread.projectId === project.id)
-                    .toSorted((a, b) => {
-                      const byDate =
-                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                      if (byDate !== 0) return byDate;
-                      return b.id.localeCompare(a.id);
-                    });
+                    .toSorted(compareThreadsForSidebar);
                   const isThreadListExpanded = expandedThreadListsByProject.has(project.id);
                   const hasHiddenThreads = projectThreads.length > THREAD_PREVIEW_LIMIT;
                   const visibleThreads =
@@ -1565,9 +1584,14 @@ export default function Sidebar() {
                                             onClick={(e) => e.stopPropagation()}
                                           />
                                         ) : (
-                                          <span className="min-w-0 flex-1 truncate text-xs">
-                                            {thread.title}
-                                          </span>
+                                          <>
+                                            {thread.pinned && (
+                                              <PinIcon className="size-3 shrink-0 text-foreground/65" />
+                                            )}
+                                            <span className="min-w-0 flex-1 truncate text-xs">
+                                              {thread.title}
+                                            </span>
+                                          </>
                                         )}
                                       </div>
                                       <div className="ml-auto flex shrink-0 items-center gap-1.5">

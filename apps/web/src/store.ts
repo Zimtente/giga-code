@@ -43,6 +43,7 @@ const initialState: AppState = {
 };
 const persistedExpandedProjectCwds = new Set<string>();
 const persistedProjectOrderCwds: string[] = [];
+const persistedPinnedThreadIds = new Set<ThreadId>();
 
 // ── Persist helpers ──────────────────────────────────────────────────
 
@@ -54,9 +55,11 @@ function readPersistedState(): AppState {
     const parsed = JSON.parse(raw) as {
       expandedProjectCwds?: string[];
       projectOrderCwds?: string[];
+      pinnedThreadIds?: string[];
     };
     persistedExpandedProjectCwds.clear();
     persistedProjectOrderCwds.length = 0;
+    persistedPinnedThreadIds.clear();
     for (const cwd of parsed.expandedProjectCwds ?? []) {
       if (typeof cwd === "string" && cwd.length > 0) {
         persistedExpandedProjectCwds.add(cwd);
@@ -65,6 +68,11 @@ function readPersistedState(): AppState {
     for (const cwd of parsed.projectOrderCwds ?? []) {
       if (typeof cwd === "string" && cwd.length > 0 && !persistedProjectOrderCwds.includes(cwd)) {
         persistedProjectOrderCwds.push(cwd);
+      }
+    }
+    for (const threadId of parsed.pinnedThreadIds ?? []) {
+      if (typeof threadId === "string" && threadId.length > 0) {
+        persistedPinnedThreadIds.add(ThreadId.makeUnsafe(threadId));
       }
     }
     return { ...initialState };
@@ -85,6 +93,7 @@ function persistState(state: AppState): void {
           .filter((project) => project.expanded)
           .map((project) => project.cwd),
         projectOrderCwds: state.projects.map((project) => project.cwd),
+        pinnedThreadIds: state.threads.filter((thread) => thread.pinned).map((thread) => thread.id),
       }),
     );
     if (!legacyKeysCleanedUp) {
@@ -306,6 +315,7 @@ export function syncServerReadModel(state: AppState, readModel: OrchestrationRea
         createdAt: thread.createdAt,
         latestTurn: thread.latestTurn,
         lastVisitedAt: existing?.lastVisitedAt ?? thread.updatedAt,
+        pinned: existing?.pinned ?? persistedPinnedThreadIds.has(thread.id),
         branch: thread.branch,
         worktreePath: thread.worktreePath,
         turnDiffSummaries: thread.checkpoints.map((checkpoint) => ({
@@ -425,6 +435,14 @@ export function setThreadBranch(
   return threads === state.threads ? state : { ...state, threads };
 }
 
+export function setThreadPinned(state: AppState, threadId: ThreadId, pinned: boolean): AppState {
+  const threads = updateThread(state.threads, threadId, (t) => {
+    if (Boolean(t.pinned) === pinned) return t;
+    return { ...t, pinned };
+  });
+  return threads === state.threads ? state : { ...state, threads };
+}
+
 // ── Zustand store ────────────────────────────────────────────────────
 
 interface AppStore extends AppState {
@@ -436,6 +454,7 @@ interface AppStore extends AppState {
   reorderProjects: (draggedProjectId: Project["id"], targetProjectId: Project["id"]) => void;
   setError: (threadId: ThreadId, error: string | null) => void;
   setThreadBranch: (threadId: ThreadId, branch: string | null, worktreePath: string | null) => void;
+  setThreadPinned: (threadId: ThreadId, pinned: boolean) => void;
 }
 
 export const useStore = create<AppStore>((set) => ({
@@ -452,6 +471,7 @@ export const useStore = create<AppStore>((set) => ({
   setError: (threadId, error) => set((state) => setError(state, threadId, error)),
   setThreadBranch: (threadId, branch, worktreePath) =>
     set((state) => setThreadBranch(state, threadId, branch, worktreePath)),
+  setThreadPinned: (threadId, pinned) => set((state) => setThreadPinned(state, threadId, pinned)),
 }));
 
 // Persist state changes with debouncing to avoid localStorage thrashing

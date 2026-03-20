@@ -532,7 +532,7 @@ function SettingsRouteView() {
                 <h2 className="text-sm font-medium text-foreground">Git</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Configure the model used for generating commit messages, PR titles, and branch
-                  names.
+                  names, plus first-message thread titles.
                 </p>
               </div>
 
@@ -540,7 +540,7 @@ function SettingsRouteView() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">Text generation model</p>
                   <p className="text-xs text-muted-foreground">
-                    Model used for auto-generated git content.
+                    Model used for auto-generated git content and first-message thread naming.
                   </p>
                 </div>
                 <Select

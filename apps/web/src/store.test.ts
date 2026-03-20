@@ -7,7 +7,13 @@ import {
 } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
-import { markThreadUnread, reorderProjects, syncServerReadModel, type AppState } from "./store";
+import {
+  markThreadUnread,
+  reorderProjects,
+  setThreadPinned,
+  syncServerReadModel,
+  type AppState,
+} from "./store";
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "./types";
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
@@ -188,6 +194,14 @@ describe("store pure functions", () => {
 
     expect(next.projects.map((project) => project.id)).toEqual([project2, project3, project1]);
   });
+
+  it("setThreadPinned updates pinned state for a thread", () => {
+    const initialState = makeState(makeThread({ pinned: false }));
+
+    const next = setThreadPinned(initialState, ThreadId.makeUnsafe("thread-1"), true);
+
+    expect(next.threads[0]?.pinned).toBe(true);
+  });
 });
 
 describe("store read model sync", () => {
@@ -224,6 +238,15 @@ describe("store read model sync", () => {
     const next = syncServerReadModel(initialState, readModel);
 
     expect(next.threads[0]?.model).toBe("claude-sonnet-4-6");
+  });
+
+  it("preserves existing local pinned thread state across read model sync", () => {
+    const initialState = makeState(makeThread({ pinned: true }));
+    const readModel = makeReadModel(makeReadModelThread({}));
+
+    const next = syncServerReadModel(initialState, readModel);
+
+    expect(next.threads[0]?.pinned).toBe(true);
   });
 
   it("preserves the current project order when syncing incoming read model updates", () => {

@@ -130,6 +130,7 @@ export function makeServerRuntimeServicesLayer() {
     orchestrationReactorLayer,
     gitCoreLayer,
     gitManagerLayer,
+    textGenerationLayer,
     terminalLayer,
     KeybindingsLive,
   ).pipe(Layer.provideMerge(NodeServices.layer));

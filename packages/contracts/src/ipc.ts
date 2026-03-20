@@ -25,6 +25,7 @@ import type {
   ProjectWriteFileResult,
 } from "./project";
 import type { ServerConfig } from "./server";
+import type { ServerGenerateThreadTitleInput, ServerGenerateThreadTitleResult } from "./server";
 import type {
   TerminalClearInput,
   TerminalCloseInput,
@@ -159,6 +160,9 @@ export interface NativeApi {
   server: {
     getConfig: () => Promise<ServerConfig>;
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
+    generateThreadTitle: (
+      input: ServerGenerateThreadTitleInput,
+    ) => Promise<ServerGenerateThreadTitleResult>;
   };
   orchestration: {
     getSnapshot: () => Promise<OrchestrationReadModel>;
