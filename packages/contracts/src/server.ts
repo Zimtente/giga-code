@@ -64,6 +64,18 @@ export const ServerUpsertKeybindingResult = Schema.Struct({
 });
 export type ServerUpsertKeybindingResult = typeof ServerUpsertKeybindingResult.Type;
 
+export const ServerGenerateThreadTitleInput = Schema.Struct({
+  cwd: TrimmedNonEmptyString,
+  message: Schema.String.check(Schema.isMaxLength(120_000)),
+  model: Schema.optional(TrimmedNonEmptyString),
+});
+export type ServerGenerateThreadTitleInput = typeof ServerGenerateThreadTitleInput.Type;
+
+export const ServerGenerateThreadTitleResult = Schema.Struct({
+  title: TrimmedNonEmptyString,
+});
+export type ServerGenerateThreadTitleResult = typeof ServerGenerateThreadTitleResult.Type;
+
 export const ServerConfigUpdatedPayload = Schema.Struct({
   issues: ServerConfigIssues,
   providers: ServerProviderStatuses,

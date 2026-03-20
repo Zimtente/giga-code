@@ -14,6 +14,7 @@ import {
   type BranchNameGenerationResult,
   type CommitMessageGenerationResult,
   type PrContentGenerationResult,
+  type ThreadTitleGenerationResult,
   type TextGenerationShape,
   TextGeneration,
 } from "../Services/TextGeneration.ts";
@@ -95,6 +96,15 @@ function sanitizePrTitle(raw: string): string {
   return "Update project changes";
 }
 
+function sanitizeThreadTitle(raw: string): string {
+  const singleLine = raw.trim().split(/\r?\n/g)[0]?.trim() ?? "";
+  const withoutWrappingQuotes = singleLine.replace(/^["'`]+|["'`]+$/g, "").trim();
+  if (withoutWrappingQuotes.length > 0) {
+    return withoutWrappingQuotes.slice(0, 96).trimEnd();
+  }
+  return "New thread";
+}
+
 const makeCodexTextGeneration = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -148,7 +158,11 @@ const makeCodexTextGeneration = Effect.gen(function* () {
     fileSystem.remove(filePath).pipe(Effect.catch(() => Effect.void));
 
   const materializeImageAttachments = (
-    _operation: "generateCommitMessage" | "generatePrContent" | "generateBranchName",
+    _operation:
+      | "generateCommitMessage"
+      | "generatePrContent"
+      | "generateBranchName"
+      | "generateThreadTitle",
     attachments: BranchNameGenerationInput["attachments"],
   ): Effect.Effect<MaterializedImageAttachments, TextGenerationError> =>
     Effect.gen(function* () {
@@ -189,7 +203,11 @@ const makeCodexTextGeneration = Effect.gen(function* () {
     cleanupPaths = [],
     model,
   }: {
-    operation: "generateCommitMessage" | "generatePrContent" | "generateBranchName";
+    operation:
+      | "generateCommitMessage"
+      | "generatePrContent"
+      | "generateBranchName"
+      | "generateThreadTitle";
     cwd: string;
     prompt: string;
     outputSchemaJson: S;
@@ -462,10 +480,43 @@ const makeCodexTextGeneration = Effect.gen(function* () {
     });
   };
 
+  const generateThreadTitle: TextGenerationShape["generateThreadTitle"] = (input) => {
+    const prompt = [
+      "You summarize a user's initial request into a concise conversation thread title.",
+      "Return a JSON object with key: title.",
+      "Rules:",
+      "- 3-8 words.",
+      "- Specific and action-oriented.",
+      "- No surrounding quotes.",
+      "- No markdown and no trailing period.",
+      "",
+      "User message:",
+      limitSection(input.message, 12_000),
+    ].join("\n");
+
+    return runCodexJson({
+      operation: "generateThreadTitle",
+      cwd: input.cwd,
+      prompt,
+      outputSchemaJson: Schema.Struct({
+        title: Schema.String,
+      }),
+      ...(input.model ? { model: input.model } : {}),
+    }).pipe(
+      Effect.map(
+        (generated) =>
+          ({
+            title: sanitizeThreadTitle(generated.title),
+          }) satisfies ThreadTitleGenerationResult,
+      ),
+    );
+  };
+
   return {
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
+    generateThreadTitle,
   } satisfies TextGenerationShape;
 });
 

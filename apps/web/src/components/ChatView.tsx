@@ -2452,6 +2452,17 @@ export default function ChatView({ threadId }: ChatViewProps) {
     if (!activeProject) return;
     const threadIdForSend = activeThread.id;
     const isFirstMessage = !isServerThread || activeThread.messages.length === 0;
+    const shouldGenerateThreadTitle = isFirstMessage && trimmed.length > 0;
+    const generatedThreadTitlePromise: Promise<string | null> = shouldGenerateThreadTitle
+      ? api.server
+          .generateThreadTitle({
+            cwd: activeProject.cwd,
+            message: trimmed,
+            ...(settings.textGenerationModel ? { model: settings.textGenerationModel } : {}),
+          })
+          .then((result) => result.title)
+          .catch(() => null)
+      : Promise.resolve(null);
     const baseBranchForWorktree =
       isFirstMessage && envMode === "worktree" && !activeThread.worktreePath
         ? activeThread.branch
@@ -2629,7 +2640,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         }
       }
 
-      // Auto-title from first message
+      // Auto-title from first message (instant fallback, then optional AI refinement).
       if (isFirstMessage && isServerThread) {
         await api.orchestration.dispatchCommand({
           type: "thread.meta.update",
@@ -2673,6 +2684,27 @@ export default function ChatView({ threadId }: ChatViewProps) {
         createdAt: messageCreatedAt,
       });
       turnStartSucceeded = true;
+
+      if (isFirstMessage && (isServerThread || createdServerThreadForLocalDraft)) {
+        void generatedThreadTitlePromise.then(async (generatedTitle) => {
+          const trimmedGeneratedTitle = generatedTitle?.trim();
+          if (!trimmedGeneratedTitle) {
+            return;
+          }
+          const nextTitle = truncateTitle(trimmedGeneratedTitle);
+          if (nextTitle === title) {
+            return;
+          }
+          await api.orchestration
+            .dispatchCommand({
+              type: "thread.meta.update",
+              commandId: newCommandId(),
+              threadId: threadIdForSend,
+              title: nextTitle,
+            })
+            .catch(() => undefined);
+        });
+      }
     })().catch(async (err: unknown) => {
       if (createdServerThreadForLocalDraft && !turnStartSucceeded) {
         await api.orchestration

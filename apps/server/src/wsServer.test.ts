@@ -48,6 +48,7 @@ import { ProviderService, type ProviderServiceShape } from "./provider/Services/
 import { ProviderHealth, type ProviderHealthShape } from "./provider/Services/ProviderHealth";
 import { Open, type OpenShape } from "./open";
 import { GitManager, type GitManagerShape } from "./git/Services/GitManager.ts";
+import { TextGeneration, type TextGenerationShape } from "./git/Services/TextGeneration.ts";
 import type { GitCoreShape } from "./git/Services/GitCore.ts";
 import { GitCore } from "./git/Services/GitCore.ts";
 import { GitCommandError, GitManagerError } from "./git/Errors.ts";
@@ -480,6 +481,7 @@ describe("WebSocket Server", () => {
       providerHealth?: ProviderHealthShape;
       open?: OpenShape;
       gitManager?: GitManagerShape;
+      textGeneration?: TextGenerationShape;
       gitCore?: Pick<GitCoreShape, "listBranches" | "initRepo" | "pullCurrentBranch">;
       terminalManager?: TerminalManagerShape;
     } = {},
@@ -514,6 +516,7 @@ describe("WebSocket Server", () => {
     const infrastructureLayer = providerLayer.pipe(Layer.provideMerge(persistenceLayer));
     const runtimeOverrides = Layer.mergeAll(
       options.gitManager ? Layer.succeed(GitManager, options.gitManager) : Layer.empty,
+      options.textGeneration ? Layer.succeed(TextGeneration, options.textGeneration) : Layer.empty,
       options.gitCore
         ? Layer.succeed(GitCore, options.gitCore as unknown as GitCoreShape)
         : Layer.empty,
@@ -833,6 +836,39 @@ describe("WebSocket Server", () => {
       availableEditors: expect.any(Array),
     });
     expectAvailableEditors((response.result as { availableEditors: unknown }).availableEditors);
+  });
+
+  it("responds to server.generateThreadTitle", async () => {
+    const textGeneration: TextGenerationShape = {
+      generateCommitMessage: vi.fn(() => Effect.void as any),
+      generatePrContent: vi.fn(() => Effect.void as any),
+      generateBranchName: vi.fn(() => Effect.void as any),
+      generateThreadTitle: vi.fn(() => Effect.succeed({ title: "Fix websocket reconnect race" })),
+    };
+
+    server = await createTestServer({
+      cwd: "/my/workspace",
+      textGeneration,
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const [ws] = await connectAndAwaitWelcome(port);
+    connections.push(ws);
+
+    const response = await sendRequest(ws, WS_METHODS.serverGenerateThreadTitle, {
+      cwd: "/my/workspace",
+      message: "Please fix websocket reconnect race in thread hydration",
+      model: "gpt-5.4-mini",
+    });
+
+    expect(response.error).toBeUndefined();
+    expect(response.result).toEqual({ title: "Fix websocket reconnect race" });
+    expect(textGeneration.generateThreadTitle).toHaveBeenCalledWith({
+      cwd: "/my/workspace",
+      message: "Please fix websocket reconnect race in thread hydration",
+      model: "gpt-5.4-mini",
+    });
   });
 
   it("bootstraps default keybindings file when missing", async () => {

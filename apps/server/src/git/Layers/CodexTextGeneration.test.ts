@@ -292,6 +292,26 @@ it.layer(CodexTextGenerationTestLayer)("CodexTextGenerationLive", (it) => {
     ),
   );
 
+  it.effect("generates and sanitizes thread titles", () =>
+    withFakeCodexEnv(
+      {
+        output: JSON.stringify({
+          title: '  "Fix websocket reconnect race."\nignored',
+        }),
+      },
+      Effect.gen(function* () {
+        const textGeneration = yield* TextGeneration;
+
+        const generated = yield* textGeneration.generateThreadTitle({
+          cwd: process.cwd(),
+          message: "Can you fix websocket reconnect race in hydration?",
+        });
+
+        expect(generated.title).toBe("Fix websocket reconnect race");
+      }),
+    ),
+  );
+
   it.effect("omits attachment metadata section when no attachments are provided", () =>
     withFakeCodexEnv(
       {

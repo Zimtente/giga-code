@@ -336,6 +336,24 @@ describe("wsNativeApi", () => {
     });
   });
 
+  it("forwards thread title generation requests to the server websocket method", async () => {
+    requestMock.mockResolvedValue({ title: "Fix terminal reconnect race" });
+    const { createWsNativeApi } = await import("./wsNativeApi");
+
+    const api = createWsNativeApi();
+    await api.server.generateThreadTitle({
+      cwd: "/tmp/project",
+      message: "Can you fix the reconnect race in the terminal stream?",
+      model: "gpt-5.4-mini",
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.serverGenerateThreadTitle, {
+      cwd: "/tmp/project",
+      message: "Can you fix the reconnect race in the terminal stream?",
+      model: "gpt-5.4-mini",
+    });
+  });
+
   it("forwards context menu metadata to desktop bridge", async () => {
     const showContextMenu = vi.fn().mockResolvedValue("delete");
     Object.defineProperty(getWindowForTest(), "desktopBridge", {

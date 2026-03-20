@@ -60,6 +60,7 @@ import { clamp } from "effect/Number";
 import { Open, resolveAvailableEditors } from "./open";
 import { ServerConfig } from "./config";
 import { GitCore } from "./git/Services/GitCore.ts";
+import { TextGeneration } from "./git/Services/TextGeneration.ts";
 import { tryHandleProjectFaviconRequest } from "./projectFaviconRoute";
 import {
   ATTACHMENTS_ROUTE_PREFIX,
@@ -214,6 +215,7 @@ export type ServerRuntimeServices =
   | ServerCoreRuntimeServices
   | GitManager
   | GitCore
+  | TextGeneration
   | TerminalManager
   | Keybindings
   | Open
@@ -251,6 +253,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const availableEditors = resolveAvailableEditors();
 
   const gitManager = yield* GitManager;
+  const textGeneration = yield* TextGeneration;
   const terminalManager = yield* TerminalManager;
   const keybindingsManager = yield* Keybindings;
   const providerHealth = yield* ProviderHealth;
@@ -881,6 +884,15 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         const body = stripRequestTag(request.body);
         const keybindingsConfig = yield* keybindingsManager.upsertKeybindingRule(body);
         return { keybindings: keybindingsConfig, issues: [] };
+      }
+
+      case WS_METHODS.serverGenerateThreadTitle: {
+        const body = stripRequestTag(request.body);
+        return yield* textGeneration.generateThreadTitle({
+          cwd: body.cwd,
+          message: body.message,
+          ...(body.model !== undefined ? { model: body.model } : {}),
+        });
       }
 
       default: {

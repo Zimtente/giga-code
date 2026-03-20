@@ -73,6 +73,21 @@ it.effect("accepts git.preparePullRequestThread requests", () =>
   }),
 );
 
+it.effect("accepts server.generateThreadTitle requests", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeWebSocketRequest({
+      id: "req-title-1",
+      body: {
+        _tag: WS_METHODS.serverGenerateThreadTitle,
+        cwd: "/repo",
+        message: "Please fix websocket reconnect race",
+        model: "gpt-5.4-mini",
+      },
+    });
+    assert.strictEqual(parsed.body._tag, WS_METHODS.serverGenerateThreadTitle);
+  }),
+);
+
 it.effect("accepts typed websocket push envelopes with sequence", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeWsResponse({
